@@ -1,5 +1,6 @@
 #!/bin/ash
 
+ echo -e "\n"
 echo "$(date '+%d/%m/%Y - %H:%M:%S') | ***** Starting Squid *****"
 
 if [ $(grep -c XCONFIGDIRX "${CONFIGDIR}/squid.conf") -ne 0 ]; then

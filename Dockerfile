@@ -1,10 +1,7 @@
 FROM alpine:latest
 MAINTAINER boredazfcuk
-
-ENV CONFIGDIR="/config" \
-   APPS="openssl squid tzdata"
-
-COPY start-squid.sh /usr/local/bin/start-squid.sh
+ARG APPS="openssl squid tzdata"
+ENV CONFIGDIR="/config"
 
 RUN echo "$(date '+%d/%m/%Y - %H:%M:%S') | ***** BUILD STARTED *****" && \
 echo "$(date '+%d/%m/%Y - %H:%M:%S') | Install Applications" && \
@@ -16,8 +13,11 @@ echo "$(date '+%d/%m/%Y - %H:%M:%S') | Create required directories and set permi
    chown -R squid:squid "$CONFIGDIR" && \
 echo "$(date '+%d/%m/%Y - %H:%M:%S') | Move default squid.conf to config directory and create new config" && \
    cp "/etc/squid/"* "${CONFIGDIR}/" && \
-   mv "${CONFIGDIR}/squid.conf" "${CONFIGDIR}/squid.conf.bak" && \
-echo "$(date '+%d/%m/%Y - %H:%M:%S') | Set permissions on launcher" && \
+   mv "${CONFIGDIR}/squid.conf" "${CONFIGDIR}/squid.conf.bak"
+
+COPY start-squid.sh /usr/local/bin/start-squid.sh
+
+RUN echo "$(date '+%d/%m/%Y - %H:%M:%S') | Set permissions on launcher" && \
    chmod +x /usr/local/bin/start-squid.sh && \
 echo "$(date '+%d/%m/%Y - %H:%M:%S') | ***** BUILD COMPLETE *****"
 
