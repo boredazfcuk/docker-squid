@@ -5,6 +5,7 @@ Initialise(){
    container_network="$(ip route | grep $(hostname -i) | awk '{print $1}')"
    echo -e "\n"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| ***** Starting $($(which squid) -v | grep Version) *****"
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| $(cat /etc/*-release | grep "PRETTY_NAME" | sed 's/PRETTY_NAME=//g' | sed 's/"//g')"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| IP address: ${lan_ip}"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Config directory: ${config_dir}"
    if [ "${home_dir}" ]; then echo "$(date '+%d/%m/%Y %H:%M:%S')| Home directory for proxyconfig web server to serve proxy pac and installation certificates: ${home_dir}"; fi
