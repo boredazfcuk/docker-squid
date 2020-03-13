@@ -1,3 +1,7 @@
+20200313
+
+ - Change: Log now displays OS version
+
 20200212
 
  - Release: Squid proxy server with ssl-bump, peek and splice for monitoring all outgoing encrypted data. Access logging enabled for seeing all requested URLs. Doesn't seem to play will with some mobile phone apps. Should be installed alongside my proxyconfig container which will allow you to download the entryption certificate and also configure proxy by-passing for preferred domains
