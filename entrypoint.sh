@@ -6,6 +6,8 @@ Initialise(){
    echo -e "\n"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| ***** Starting $($(which squid) -v | grep Version) *****"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| $(cat /etc/*-release | grep "PRETTY_NAME" | sed 's/PRETTY_NAME=//g' | sed 's/"//g')"
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Squid User ID: $(id -u squid)"
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Monitoring Group ID: ${monitoring_gid}"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| IP address: ${lan_ip}"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Config directory: ${config_dir}"
    if [ "${home_dir}" ]; then echo "$(date '+%d/%m/%Y %H:%M:%S')| Home directory for proxyconfig web server to serve proxy pac and installation certificates: ${home_dir}"; fi
@@ -169,7 +171,9 @@ Configure(){
 SetOwnerAndGroup(){
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Set owner of application files"
    chown -R squid:squid "${config_dir}"
+   chown -R squid:"${monitoring_gid}" "/var/log/squid"
    if [ -d "${home_dir}" ]; then chown -R squid:squid "${home_dir}"; fi
+   
 }
 
 LaunchSquid (){
