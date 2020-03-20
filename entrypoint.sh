@@ -3,7 +3,7 @@
 Initialise(){
    lan_ip="$(hostname -i)"
    container_network="$(ip route | grep $(hostname -i) | awk '{print $1}')"
-   echo -e "\n"
+   echo
    echo "$(date '+%d/%m/%Y %H:%M:%S')| ***** Starting $($(which squid) -v | grep Version) *****"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| $(cat /etc/*-release | grep "PRETTY_NAME" | sed 's/PRETTY_NAME=//g' | sed 's/"//g')"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Squid User ID: $(id -u squid)"
