@@ -2,13 +2,14 @@
 
 Initialise(){
    lan_ip="$(hostname -i)"
-   container_network="$(ip route | grep $(hostname -i) | awk '{print $1}')"
+   container_network="$(ip route | grep $(hostname -i) | grep -v default | awk '{print $1}')"
    echo
    echo "$(date '+%d/%m/%Y %H:%M:%S')| ***** Starting $($(which squid) -v | grep Version) *****"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| $(cat /etc/*-release | grep "PRETTY_NAME" | sed 's/PRETTY_NAME=//g' | sed 's/"//g')"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Squid User ID: $(id -u squid)"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Monitoring Group ID: ${monitoring_gid}"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| IP address: ${lan_ip}"
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Container network: ${container_network}"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Config directory: ${config_dir}"
    if [ "${home_dir}" ]; then echo "$(date '+%d/%m/%Y %H:%M:%S')| Home directory for proxyconfig web server to serve proxy pac and installation certificates: ${home_dir}"; fi
 }
@@ -21,6 +22,24 @@ FirstRun(){
       cp "/etc/squid.default/errorpage.css" "${config_dir}/"
       cp "/etc/squid.default/mime.conf" "${config_dir}/"
       cp "/etc/squid.default/squid.conf" "${config_dir}/"
+
+      if [ "$(grep -cE "http_port \b([0-9]{1,3}\.){3}[0-9]{1,3}\b:3128" "${config_dir}/squid.conf")" -eq 0 ]; then
+         echo "$(date '+%d/%m/%Y %H:%M:%S')| Create default ssl-bump configuration"
+         sed -i \
+            -e "s%^http_port .*%http_port ${lan_ip}:3128 ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB%" \
+            "${config_dir}/squid.conf"
+         echo "$(date '+%d/%m/%Y %H:%M:%S')| Create default peek and splice configuration"
+         peek_and_splice="$(echo "https_port ${lan_ip}:3129 intercept ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB" \
+            "\nsslcrtd_program /usr/lib/squid/security_file_certgen -d -s ${config_dir}/ssl_db -M 16MB" \
+            "\nacl step1 at_step SslBump1" \
+            "\nssl_bump peek step1" \
+            "\nssl_bump bump all" \
+            "\nssl_bump splice all" \
+         )"
+         sed -i \
+            -e "/^http_port ${lan_ip}:3128/a ${peek_and_splice}" \
+            "${config_dir}/squid.conf"
+      fi
 
       if [ ! -d "${config_dir}/https" ]; then
          echo "$(date '+%d/%m/%Y %H:%M:%S')| First run detected - create default config"
@@ -118,50 +137,31 @@ FirstRun(){
 }
 
 Configure(){
-   if [ -f "${config_dir}/squid.conf" ] && [ "$(grep -c "acl ignore_container_network src" "${config_dir}/squid.conf")" -eq 0 ]; then
+   if [ "$(grep -c "acl ignore_container_network src" "${config_dir}/squid.conf")" -eq 0 ]; then
       echo "$(date '+%d/%m/%Y %H:%M:%S')| Create access control list to prevent logging for container network"
       sed -i \
          -e "/RFC 1122/i acl ignore_container_network src" \
          "${config_dir}/squid.conf"
    fi
-   if [ -f "${config_dir}/squid.conf" ]; then
-      echo "$(date '+%d/%m/%Y %H:%M:%S')| Set Squid's LAN IP subnet in access control list"
-      sed -i \
-         -e "s%^acl ignore_container_network src.*%acl ignore_container_network src ${container_network}%" \
-         "${config_dir}/squid.conf"
-   fi
-   if [ -f "${config_dir}/squid.conf" ] && [ "$(grep -c "acl ignore_healthcheck has request" "${config_dir}/squid.conf")" -eq 0 ]; then
+   if [ "$(grep -c "acl ignore_healthcheck has request" "${config_dir}/squid.conf")" -eq 0 ]; then
       echo "$(date '+%d/%m/%Y %H:%M:%S')| Create access control list to ignore healthchecks (empty requests)"
       sed -i \
          -e "/RFC 1122/i acl ignore_healthcheck has request" \
          "${config_dir}/squid.conf"
    fi
-   if [ -f "${config_dir}/squid.conf" ] && [ "$(grep -cE "http_port \b([0-9]{1,3}\.){3}[0-9]{1,3}\b:3129*" "${config_dir}/squid.conf")" -eq 0 ]; then
-      echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure ssl-bump"
-      sed -i \
-         -e "s%^http_port .*%http_port ${lan_ip}:3128 ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB%" \
-         "${config_dir}/squid.conf"
-      echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure peek and splice"
-      peek_and_splice="$(echo "https_port ${lan_ip}:3129 intercept ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB" \
-         "\nsslcrtd_program /usr/lib/squid/security_file_certgen -d -s ${config_dir}/ssl_db -M 16MB" \
-         "\nacl step1 at_step SslBump1" \
-         "\nssl_bump peek step1" \
-         "\nssl_bump bump all" \
-         "\nssl_bump splice all" \
-      )"
-      sed -i \
-         -e "/^http_port ${lan_ip}:3128/a ${peek_and_splice}" \
-         "${config_dir}/squid.conf"
-   elif [ -f "${config_dir}/squid.conf" ] && [ "$(grep -cE "https_port \b([0-9]{1,3}\.){3}[0-9]{1,3}\b:3129*" "${config_dir}/squid.conf")" -eq 1 ]; then
-      echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure ssl-bump"
-      sed -i \
-         -e "s%^http_port .*%http_port ${lan_ip}:3128 ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB%" \
-         "${config_dir}/squid.conf"
-      echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure peek and splice"
-      sed -i \
-         -e "s%^https_port .*%https_port ${lan_ip}:3129 intercept ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB%" \
-         "${config_dir}/squid.conf"
-   fi
+
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Set Squid's LAN IP subnet in access control list"
+   sed -i \
+      -e "s%^acl ignore_container_network src.*%acl ignore_container_network src ${container_network}%" \
+      "${config_dir}/squid.conf"
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure ssl-bump with listening IP: ${lan_ip}"
+   sed -i \
+      -e "s%^http_port .*%http_port ${lan_ip}:3128 ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB%" \
+      "${config_dir}/squid.conf"
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure peek and splice with listening IP: ${lan_ip}"
+   sed -i \
+      -e "s%^https_port .*%https_port ${lan_ip}:3129 intercept ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB%" \
+      "${config_dir}/squid.conf"
    if [ -d "${home_dir}" ]; then
       echo "$(date '+%d/%m/%Y %H:%M:%S')| HTTPd server home folder detected, copying certificates"
       cp "${config_dir}/https/squid_ca_cert.pem" "${config_dir}/https/squid_ca_cert.der" "${home_dir}"
@@ -169,11 +169,15 @@ Configure(){
 }
 
 SetOwnerAndGroup(){
-   echo "$(date '+%d/%m/%Y %H:%M:%S')| Set owner of application files"
-   chown -R squid:squid "${config_dir}"
-   chown -R squid:"${monitoring_gid}" "/var/log/squid"
-   if [ -d "${home_dir}" ]; then chown -R squid:squid "${home_dir}"; fi
-   
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Set owner of application files, if required"
+   find "${config_dir}" ! -user squid -exec chown squid {} \;
+   find "${config_dir}" ! -group squid -exec chgrp squid {} \;
+   find "/var/log/squid" ! -user squid -exec chown squid {} \;
+   find "/var/log/squid" ! -group "${monitoring_gid}" -exec chgrp "${monitoring_gid}" {} \;
+   if [ -d "${home_dir}" ]; then
+      find "${home_dir}" ! -user squid -exec chown squid {} \;
+      find "${home_dir}" ! -group squid -exec chgrp squid {} \;
+   fi
 }
 
 LaunchSquid (){
