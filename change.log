@@ -1,3 +1,7 @@
+20200806
+
+ - Change: Added healthcheck condition to check network card presence
+
 20200313
 
  - Change: Log now displays OS version
