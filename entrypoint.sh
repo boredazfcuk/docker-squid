@@ -11,6 +11,7 @@ Initialise(){
    echo "$(date '+%d/%m/%Y %H:%M:%S')| IP address: ${lan_ip}"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Container network: ${container_network}"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Config directory: ${config_dir}"
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Cache directory: ${cache_dir}"
    if [ "${home_dir}" ]; then echo "$(date '+%d/%m/%Y %H:%M:%S')| Home directory for proxyconfig web server to serve proxy pac and installation certificates: ${home_dir}"; fi
 }
 
@@ -23,7 +24,7 @@ FirstRun(){
       cp "/etc/squid.default/mime.conf" "${config_dir}/"
       cp "/etc/squid.default/squid.conf" "${config_dir}/"
 
-      if [ "$(grep -cE "http_port \b([0-9]{1,3}\.){3}[0-9]{1,3}\b:3128" "${config_dir}/squid.conf")" -eq 0 ]; then
+      if [ "$(grep -cE "^http_port 3128$" "${config_dir}/squid.conf")" -eq 1 ]; then
          echo "$(date '+%d/%m/%Y %H:%M:%S')| Create default ssl-bump configuration"
          sed -i \
             -e "s%^http_port .*%http_port ${lan_ip}:3128 ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB%" \
@@ -109,10 +110,6 @@ FirstRun(){
          echo 'range_offset_limit -1'
          echo 'quick_abort_min -1 KB'
       } >> "${config_dir}/squid.conf"
-      sed -i \
-         -e "s%^coredump_dir .*%coredump_dir ${config_dir}/cache%" \
-         -e "s%#cache_dir .*%cache_dir aufs ${config_dir}/cache 3072 16 256%" \
-         "${config_dir}/squid.conf"
 
       echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure mime table file location"
       {
@@ -128,10 +125,17 @@ FirstRun(){
          echo 'pid_filename /run/squid/${service_name}.pid'
       } >> "${config_dir}/squid.conf"
 
-      if [ ! -f "${config_dir}/cache/swap.state" ]; then
-         echo "$(date '+%d/%m/%Y %H:%M:%S')| Creating cache for dynamically generated certificates"
-         chown -R squid:squid "${config_dir}"
-         "$(which squid)" -N -z -f "${config_dir}/squid.conf"
+      if [ "$(grep -c "acl ignore_container_network src" "${config_dir}/squid.conf")" -eq 0 ]; then
+         echo "$(date '+%d/%m/%Y %H:%M:%S')| Create access control list to prevent logging for container network"
+         sed -i \
+            -e "/RFC 1122/i acl ignore_container_network src ${container_network}" \
+            "${config_dir}/squid.conf"
+      fi
+      if [ "$(grep -c "acl ignore_healthcheck has request" "${config_dir}/squid.conf")" -eq 0 ]; then
+         echo "$(date '+%d/%m/%Y %H:%M:%S')| Create access control list to ignore healthchecks (empty requests)"
+         sed -i \
+            -e "/RFC 1122/i acl ignore_healthcheck has request" \
+            "${config_dir}/squid.conf"
       fi
    fi
 }
@@ -149,7 +153,11 @@ Configure(){
          -e "/RFC 1122/i acl ignore_healthcheck has request" \
          "${config_dir}/squid.conf"
    fi
-
+   echo "$(date '+%d/%m/%Y %H:%M:%S')| Configure cache directory"
+   sed -i \
+      -e "s%^coredump_dir .*%coredump_dir ${cache_dir}%" \
+      -e "s%#cache_dir .*%cache_dir aufs ${cache_dir} 3072 16 256%" \
+      "${config_dir}/squid.conf"
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Set Squid's LAN IP subnet in access control list"
    sed -i \
       -e "s%^acl ignore_container_network src.*%acl ignore_container_network src ${container_network}%" \
@@ -165,6 +173,11 @@ Configure(){
    if [ -d "${home_dir}" ]; then
       echo "$(date '+%d/%m/%Y %H:%M:%S')| HTTPd server home folder detected, copying certificates"
       cp "${config_dir}/https/squid_ca_cert.pem" "${config_dir}/https/squid_ca_cert.der" "${home_dir}"
+   fi
+   if [ ! -f "${cache_dir}/swap.state" ]; then
+      echo "$(date '+%d/%m/%Y %H:%M:%S')| Creating cache for dynamically generated certificates"
+      chown -R squid:squid "${cache_dir}"
+      "$(which squid)" -N -z -f "${config_dir}/squid.conf"
    fi
 }
 

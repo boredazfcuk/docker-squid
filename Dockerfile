@@ -1,7 +1,8 @@
 FROM alpine:3.12
 MAINTAINER boredazfcuk
 ARG app_dependencies="openssl squid tzdata"
-ENV config_dir="/config"
+ENV config_dir="/config" \
+   cache_dir="/cache"
 
 RUN echo "$(date '+%d/%m/%Y - %H:%M:%S') | ***** BUILD STARTED *****" && \
 echo "$(date '+%d/%m/%Y - %H:%M:%S') | Install Applications" && \
@@ -14,6 +15,6 @@ RUN echo "$(date '+%d/%m/%Y - %H:%M:%S') | Set permissions on launcher" && \
    chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh && \
 echo "$(date '+%d/%m/%Y - %H:%M:%S') | ***** BUILD COMPLETE *****"
 
-VOLUME "${config_dir}"
+VOLUME "${config_dir}" "${cache_dir}"
 
 ENTRYPOINT /usr/local/bin/entrypoint.sh
