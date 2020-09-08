@@ -16,14 +16,15 @@ Initialise(){
 }
 
 FirstRun(){
-   if [ ! -f "${config_dir}/squid.conf" ]; then
+   if [ -f "/first_run" ]; then
       echo "$(date '+%d/%m/%Y %H:%M:%S')| ***** First run detected. Create default squid config in ${config_dir} *****"
-      if [ -d "/etc/squid/" ]; then mv "/etc/squid/" "/etc/squid.default/"; fi
-      cp "/etc/squid.default/cachemgr.conf" "${config_dir}/"
-      cp "/etc/squid.default/errorpage.css" "${config_dir}/"
-      cp "/etc/squid.default/mime.conf" "${config_dir}/"
-      cp "/etc/squid.default/squid.conf" "${config_dir}/"
-
+      if [ -d "/etc/squid/" ]; then
+         mv "/etc/squid/" "/etc/squid.default/"
+         cp "/etc/squid.default/cachemgr.conf" "${config_dir}/"
+         cp "/etc/squid.default/errorpage.css" "${config_dir}/"
+         cp "/etc/squid.default/mime.conf" "${config_dir}/"
+         cp "/etc/squid.default/squid.conf" "${config_dir}/"
+      fi
       if [ "$(grep -cE "^http_port 3128$" "${config_dir}/squid.conf")" -eq 1 ]; then
          echo "$(date '+%d/%m/%Y %H:%M:%S')| Create default ssl-bump configuration"
          sed -i \
@@ -31,7 +32,8 @@ FirstRun(){
             "${config_dir}/squid.conf"
          echo "$(date '+%d/%m/%Y %H:%M:%S')| Create default peek and splice configuration"
          peek_and_splice="$(echo "https_port ${lan_ip}:3129 intercept ssl-bump cert=${config_dir}/https/squid_ca_chain.pem generate-host-certificates=on dynamic_cert_mem_cache_size=16MB" \
-            "\nsslcrtd_program /usr/lib/squid/security_file_certgen -d -s ${config_dir}/ssl_db -M 16MB" \
+            "\nsslcrtd_program /usr/lib/squid/security_file_certgen -d -s ${config_dir}/ssl_db -M 4MB" \
+            "\nsslcrtd_children 3 startup=1 idle=1" \
             "\nacl step1 at_step SslBump1" \
             "\nssl_bump peek step1" \
             "\nssl_bump bump all" \
@@ -41,12 +43,10 @@ FirstRun(){
             -e "/^http_port ${lan_ip}:3128/a ${peek_and_splice}" \
             "${config_dir}/squid.conf"
       fi
-
       if [ ! -d "${config_dir}/https" ]; then
-         echo "$(date '+%d/%m/%Y %H:%M:%S')| First run detected - create default config"
-
-         echo "$(date '+%d/%m/%Y %H:%M:%S')| Create required directories and set permissions"
+         echo "$(date '+%d/%m/%Y %H:%M:%S')| Create certificates directory"
          mkdir -p "${config_dir}/https"
+         chwown squid:squid "${config_dir}/https"
 
          echo "$(date '+%d/%m/%Y %H:%M:%S')| Create certification authority certificate configuration file"
          if [ ! -f "${config_dir}/https/ca.cnf" ]; then
@@ -137,6 +137,8 @@ FirstRun(){
             -e "/RFC 1122/i acl ignore_healthcheck has request" \
             "${config_dir}/squid.conf"
       fi
+      echo "$(date '+%d/%m/%Y %H:%M:%S')| First run configuration complete"
+      rm "/first_run"
    fi
 }
 
@@ -185,6 +187,8 @@ SetOwnerAndGroup(){
    echo "$(date '+%d/%m/%Y %H:%M:%S')| Set owner of application files, if required"
    find "${config_dir}" ! -user squid -exec chown squid {} \;
    find "${config_dir}" ! -group squid -exec chgrp squid {} \;
+   find "${cache_dir}" ! -user squid -exec chown squid {} \;
+   find "${cache_dir}" ! -group squid -exec chgrp squid {} \;
    find "/var/log/squid" ! -user squid -exec chown squid {} \;
    find "/var/log/squid" ! -group "${monitoring_gid}" -exec chgrp "${monitoring_gid}" {} \;
    if [ -d "${home_dir}" ]; then
@@ -205,6 +209,7 @@ LaunchSquid (){
 
 Initialise
 FirstRun
+SetOwnerAndGroup
 Configure
 SetOwnerAndGroup
 LaunchSquid

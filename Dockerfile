@@ -11,8 +11,9 @@ echo "$(date '+%d/%m/%Y - %H:%M:%S') | Install Applications" && \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY healthcheck.sh /usr/local/bin/healthcheck.sh
 
-RUN echo "$(date '+%d/%m/%Y - %H:%M:%S') | Set permissions on launcher" && \
+RUN echo "$(date '+%d/%m/%Y - %H:%M:%S') | Set permissions on launcher and health check" && \
    chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh && \
+   touch "/first_run" && \
 echo "$(date '+%d/%m/%Y - %H:%M:%S') | ***** BUILD COMPLETE *****"
 
 VOLUME "${config_dir}" "${cache_dir}"
