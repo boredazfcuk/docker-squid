@@ -12,3 +12,5 @@ The docker-proxyconfig will also publish a proxy.pac file, which tells the clien
 Currently, I configure the proxy.pac location via DHCP. Once I've containerised that side of things, I'll publish that too.
 
 This squid container logs all outgoing traffic to /var/log/squid/access.log
+
+Litecoin: LfmogjcqJXHnvqGLTYri5M8BofqqXQttk4
