@@ -1,4 +1,4 @@
-FROM alpine:3.12
+FROM alpine:3.14
 MAINTAINER boredazfcuk
 ARG app_dependencies="openssl squid tzdata"
 ENV config_dir="/config" \
